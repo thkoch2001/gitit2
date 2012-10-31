@@ -30,7 +30,7 @@ mkYesod "Master" [parseRoutes|
 instance Yesod Master where
   defaultLayout contents = do
     PageContent title headTags bodyTags <- widgetToPageContent $ do
-      addWidget contents
+      contents
     mmsg <- getMessage
     hamletToRepHtml [hamlet|
         $doctype 5
@@ -43,7 +43,7 @@ instance Yesod Master where
                <p.message>#{msg}
              ^{bodyTags}
         |]
-  maximumContentLength x _ = maxUploadSize x
+  maximumContentLength x _ = fromIntegral $ maxUploadSize x
 
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage

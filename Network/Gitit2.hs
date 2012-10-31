@@ -39,12 +39,14 @@ import Control.Applicative
 import Control.Monad (when, unless, filterM, mplus, foldM)
 import qualified Data.Text as T
 import Data.Text (Text)
-import Data.ByteString.Lazy (ByteString)
+import Data.ByteString.Lazy (ByteString, fromChunks)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.UTF8 as BSU
+import Data.Conduit (($$))
+import Data.Conduit.List (consume)
 import Text.Blaze.Html hiding (contents)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
@@ -1287,7 +1289,7 @@ data Upload = Upload { uploadFile        :: FileInfo
                      , uploadWikiname    :: Text
                      , uploadDescription :: Text
                      , uploadOverwrite   :: Bool
-                     } deriving Show
+                     }
 
 uploadForm :: HasGitit master
            => Maybe Upload
@@ -1332,7 +1334,8 @@ postUploadR = do
               setMessageI MsgFileExists
               showUploadForm enctype widget
             else do
-              res <- liftIO $ try $ save fs path auth comm $ fileContent fileinfo
+              cont <- lift $ fromChunks <$> (fileSource fileinfo $$ consume)
+              res <- liftIO $ try $ save fs path auth comm cont
               case res of
                    Left FS.Unchanged -> do
                                         setMessageI MsgFileUnchanged
