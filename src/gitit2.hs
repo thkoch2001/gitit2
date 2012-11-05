@@ -3,6 +3,7 @@
 import Network.Gitit2
 import Network.Socket hiding (Debug)
 import Yesod
+import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Yesod.Static
 import Network.Wai.Handler.Warp
 import Data.FileStore
@@ -24,7 +25,10 @@ import Text.Pandoc.Definition
 
 data Master = Master { getGitit :: Gitit, maxUploadSize :: Int }
 mkYesod "Master" [parseRoutes|
-/ SubsiteR Gitit getGitit
+/gitit SubsiteR Gitit getGitit
+/   RootR GET
+/favicon.ico FaviconR GET
+/robots.txt RobotsR GET
 |]
 
 instance Yesod Master where
@@ -56,6 +60,11 @@ instance HasGitit Master where
   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
   makePage = makeDefaultPage
   getPlugins = return [samplePlugin]
+
+-- | A get request for / will redirect to the gitit subsite's home page.
+getRootR :: Handler RepHtml
+getRootR = do
+    redirect $ SubsiteR $ HomeR
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)

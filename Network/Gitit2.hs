@@ -59,7 +59,6 @@ import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
-import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
 import System.Directory
 import System.Time (ClockTime (..), getClockTime)
@@ -229,8 +228,6 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_static StaticR Static getStatic
 /_index IndexBaseR GET
 /_index/*Page  IndexR GET
-/favicon.ico FaviconR GET
-/robots.txt RobotsR GET
 /_random RandomR GET
 /_raw/*Page RawR GET
 /_edit/*Page  EditR GET
