@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns          #-}
 module Network.Gitit2.Routes where
 
@@ -16,6 +17,11 @@ import Text.Blaze.Html hiding (contents)
 import Text.Pandoc (Inline, Block)
 import Yesod hiding (MsgDelete)
 import Yesod.Static
+import Data.Typeable
+import Data.Data
+import GHC.Generics
+import qualified Data.Aeson as ASON
+import Text.Pandoc
 
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
@@ -159,6 +165,14 @@ readPageFormat s =
        _           -> Nothing
  where (s',rest) = T.break (=='+') s
        lhs = rest == "+lhs"
+-- | Data type equivalent to Element where only sections and single links in paragraph have been kept
+data GititToc = GititLink [Inline] Target
+              | GititSec Int [Int] Text.Pandoc.Attr [Inline] [GititToc]
+                --    lvl  num attributes label    contents
+                deriving (Eq, Read, Show, Typeable, Data, Generic)
+
+instance ASON.FromJSON GititToc
+instance ASON.ToJSON GititToc
 
 data WikiPage = WikiPage {
     wpName        :: Text
@@ -170,6 +184,7 @@ data WikiPage = WikiPage {
   , wpMetadata    :: M.Map Text Value
   , wpCacheable   :: Bool
   , wpContent     :: [Block]
+  , wpTocHierarchy :: [GititToc]
 } deriving (Show)
 
 -- Create routes.

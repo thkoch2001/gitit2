@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              FlexibleContexts, ScopedTypeVariables, TupleSections,
+             DeriveDataTypeable, DeriveGeneric,
              ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.Gitit2 ( GititConfig (..)
@@ -31,9 +32,10 @@ import Data.Char (toLower)
 import System.FilePath
 import Data.List (inits, find, sortBy, isPrefixOf, sort, nub, intercalate)
 import Text.Pandoc
+import qualified Text.Pandoc.Writers.HTML as PWH (defaultWriterState, WriterState, inlineListToHtml, unordList)
 import Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
 import Text.Pandoc.PDF (makePDF)
-import Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
+import Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8, hierarchicalize, Element(..))
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
@@ -41,7 +43,7 @@ import Control.Monad (when, unless, filterM, mplus, foldM)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Text.Encoding
-import Data.ByteString.Lazy (ByteString, fromChunks, fromStrict)
+import Data.ByteString.Lazy (ByteString, fromChunks, pack, hGetContents)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -52,8 +54,8 @@ import Data.Conduit.List (consume)
 import Text.Blaze.Html hiding (contents, text)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
-import Data.Monoid (Monoid, mappend)
-import Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
+import Data.Monoid (Monoid, mempty, mappend)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe, isJust, isNothing)
 import System.Random (randomRIO)
 import System.IO (Handle, withFile, IOMode(..))
 import System.IO.Error (isEOFError)
@@ -68,6 +70,10 @@ import Network.HTTP.Base (urlEncode, urlDecode)
 import qualified Data.Set as Set
 
 import Network.Gitit2.Routes
+import qualified Data.Aeson as ASON
+import qualified Text.Blaze.XHtml1.Transitional as H
+import qualified Text.Blaze.XHtml1.Transitional.Attributes as A
+import Network.URI ( unEscapeString )
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -218,6 +224,15 @@ pathForPage p = do
   conf <- getConfig
   return $ T.unpack (toMessage p) <> page_extension conf
 
+pathForToc :: Page -> GH master FilePath
+pathForToc p = do
+  conf <- getConfig
+  return $ T.unpack (toMessage p) <> page_extension conf </> "toc"
+
+pathForCategories :: Page -> GH master FilePath
+pathForCategories p = do
+  conf <- getConfig
+  return $ T.unpack (toMessage p) <> page_extension conf </> "categories"
 pathForFile :: Page -> GH master FilePath
 pathForFile p = return $ T.unpack $ toMessage p
 
@@ -350,7 +365,6 @@ postDeleteR page = do
 
 getViewR :: HasGitit master => Page -> GH master Html
 getViewR page = do
-  pathForPage page >>= tryCache
   pathForFile page >>= tryCache
   view Nothing page
 
@@ -373,20 +387,44 @@ getMimeType fp = do
 getRevisionR :: HasGitit master => RevisionId -> Page -> GH master Html
 getRevisionR rev = view (Just rev)
 
+-- | Retrieves toc, categories and content from cache or create them and cache them
+wikifyAndCache :: HasGitit master
+               => Page
+               -> Maybe RevisionId
+               -> GH master (Maybe ([GititToc], [Text], Html))
+wikifyAndCache page mbrev = do
+  pagePath  <- pathForPage page
+  tocPath <- pathForToc page
+  catPath <- pathForCategories page
+  mbTocAndPageHtml <- do
+    mbPageHtml <- tryPageCache pagePath
+    mbTocPandoc <- tryTocCache tocPath
+    mbCatTexts <- tryCatCache catPath
+    return $ (,,) <$>  mbTocPandoc <*> mbCatTexts <*> mbPageHtml
+  maybe (do
+            mbcont <- getRawContents pagePath mbrev
+            case mbcont of
+              Just contents -> do
+                          wikipage <- contentsToWikiPage page contents
+                          htmlContents <- caching pagePath $ pageToHtml wikipage
+                          let tocHierarchy = wpTocHierarchy wikipage
+                              categories = wpCategories wikipage
+                          cacheLBS tocPath $ ASON.encode tocHierarchy
+                          cacheLBS catPath $ pack $ read $ show categories
+                          return $ Just (tocHierarchy, categories, htmlContents)
+              Nothing -> return Nothing)
+      (return . Just)
+      mbTocAndPageHtml
 view :: HasGitit master => Maybe RevisionId -> Page -> GH master Html
 view mbrev page = do
-  path <- pathForPage page
-  mbcont <- getRawContents path mbrev
-  case mbcont of
-       Just contents -> do
-         wikipage <- contentsToWikiPage page contents
-         htmlContents <- pageToHtml wikipage
-         let mbcache = if wpCacheable wikipage && isNothing mbrev
-                          then caching path
-                          else id
-         mbcache $ layout [ViewTab,EditTab,HistoryTab,DiscussTab]
-                            (wpCategories wikipage) htmlContents
-       Nothing -> do
+  mbTocAndPageHtml <- wikifyAndCache page mbrev
+  case mbTocAndPageHtml of
+    Just (tocHierarchy, categories, htmlContents) ->
+             layout [ViewTab,EditTab,HistoryTab,DiscussTab]
+                            tocHierarchy
+                            categories
+                            htmlContents
+    Nothing -> do
          path' <- pathForFile page
          mbcont' <- getRawContents path' mbrev
          is_source <- isSourceFile path'
@@ -397,14 +435,15 @@ view mbrev page = do
               Just contents
                | is_source -> do
                    htmlContents <- sourceToHtml path' contents
-                   caching path' $ layout [ViewTab,HistoryTab] [] htmlContents
+                   caching path' $ layout [ViewTab,HistoryTab] [] [] htmlContents
                | otherwise -> do
                   ct <- getMimeType path'
                   let content = toContent contents
                   caching path' (return (ct, content)) >>= sendResponse
-   where layout tabs categories cont = do
+   where layout tabs tocHierarchy categories cont = do
            toMaster <- getRouteToParent
            contw <- toWikiPage cont
+           mbToc <- extractToc tocHierarchy
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
                               , pgTabs = tabs
@@ -424,6 +463,8 @@ view mbrev page = do
                           "Atom link for this page"
                        [whamlet|
                          <h1 .title>#{page}
+                         $maybe toc <- mbToc
+                           <div id="TOC">^{toc}
                          $maybe rev <- mbrev
                            <h2 .revision>#{rev}
                          ^{contw}
@@ -435,7 +476,30 @@ view mbrev page = do
                                  <li><a href=@{toMaster $ CategoryR category}>#{category}
                        |]
 
+extractTocAbs :: HasGitit master
+              => (WriterOptions
+                      -> Text
+                      -> [a]
+                      -> StateT PWH.WriterState (GH master) (Maybe Html))
+              -> [a]
+              -> GH master (Maybe (WidgetT master IO ()))
+extractTocAbs tocFun tocHierrarchy = do
+  let tocFunS = tocFun def { writerWrapText = False
+                           , writerHtml5 = True
+                           , writerHighlight = True
+                           , writerHTMLMathMethod = MathML Nothing
+                           }
+                "" tocHierrarchy
+  mbTocRendered <- evalStateT tocFunS PWH.defaultWriterState
+  case mbTocRendered of
+    Just tocRendered -> return $ Just $ toWidget tocRendered
+    -- page has no titles and hence no toc
+    Nothing -> return Nothing
 
+extractToc :: HasGitit master
+           => [GititToc]
+           -> GH master (Maybe (WidgetT master IO ()))
+extractToc = extractTocAbs tableOfContents
 getIndexBaseR :: HasGitit master => GH master Html
 getIndexBaseR = getIndexFor []
 
@@ -541,6 +605,7 @@ contentsToWikiPage page contents = do
   let pageToPrefix (Page []) = T.empty
       pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks (pageToPrefix page) doc
+  let tocHierarchy = stripElementsForToc $ hierarchicalize blocks
   foldM applyPlugin
            WikiPage {
              wpName        = pageToText page
@@ -552,6 +617,7 @@ contentsToWikiPage page contents = do
            , wpMetadata    = metadata
            , wpCacheable   = True
            , wpContent     = blocks
+           , wpTocHierarchy = tocHierarchy
            } plugins'
 
 sourceToHtml :: HasGitit master
@@ -777,7 +843,7 @@ update' mbrevid page = do
          path <- pathForPage page
          case mbrevid of
            Just revid -> do
-              mres <- liftIO $ modify fs path revid auth comm cont
+              mres <- liftIO $ FS.modify fs path revid auth comm cont
               case mres of
                    Right () -> do
                       expireCache path
@@ -1288,23 +1354,61 @@ cacheContent path (TypedContent ct content) = do
             _ -> liftIO $
               -- TODO replace w logging
               putStrLn $ "Can't cache " ++ path
+cacheLBS :: FilePath -> ByteString -> GH master ()
+cacheLBS cachepath lbs = do
+  conf <- getConfig
+  when (use_cache conf) $ liftIO $ do
+                          let fullpath = cache_dir conf </> cachepath
+                          createDirectoryIfMissing True $ takeDirectory fullpath
+                          B.writeFile fullpath lbs
+
+tryPageCache :: FilePath -> GH master (Maybe Html)
+tryPageCache  = processDirCache
+                (\ fullpath x -> do
+                   pageString <- liftIO $ TIO.readFile $ fullpath </> x
+                   return $ Just $ preEscapedToHtml pageString)
+
+tryTocCache :: FilePath -> GH master (Maybe [GititToc])
+tryTocCache = processDirCache
+                (\ fullpath x -> liftIO $
+                     withFile (fullpath </> x) ReadMode $ \hnd -> do
+                       pageString <- hGetContents hnd
+                       return $ ASON.decode pageString)
+
+tryCatCache :: FilePath -> GH master (Maybe [Text])
+tryCatCache = processDirCache
+                 (\ fullpath x -> liftIO $
+                     withFile (fullpath </> x) ReadMode $ \hnd -> do
+                       pageString <- BS.hGetContents hnd
+                       -- TODO: simplify
+                       return $ Just $ map T.pack $ read $ show pageString)
 
 tryCache :: FilePath -> GH master ()
-tryCache path = do
+tryCache = void .
+           processDirCache
+           (\ fullpath x -> do
+              let ct = BSU.fromString $ urlDecode x
+              sendFile ct $ fullpath </> x
+              return Nothing)
+
+processDirCache :: (FilePath ->FilePath -> GH master (Maybe a))
+                -> FilePath
+                -> GH master (Maybe a)
+processDirCache process path = do
   conf <- getConfig
-  when (use_cache conf) $
-     do
+  if use_cache conf
+     then do
        let fullpath = cache_dir conf </> path
        exists <- liftIO $ doesDirectoryExist fullpath
-       when exists $
-          do
+       if exists
+          then (do
             files <- liftIO $ getDirectoryContents fullpath >>=
                                filterM (doesFileExist . (fullpath </>))
             case files of
-                 (x:_) -> do
-                    let ct = BSU.fromString $ urlDecode x
-                    sendFile ct $ fullpath </> x
-                 _     -> return ()
+                 (x:_) -> process fullpath x
+                 _     -> return Nothing)
+           else return Nothing
+     else return Nothing
 
 expireCache :: FilePath -> GH master ()
 expireCache path = do
@@ -1429,3 +1533,135 @@ hGetLinesTill h end = do
      else do
        rest <- hGetLinesTill h end
        return (next:rest)
+
+-- | Extends an HTML writer from a single GititToc to [GititToc]
+tableOfContentsAbs :: (WriterOptions
+                           -> Text
+                           -> a
+                           -> StateT PWH.WriterState (GH master) (Maybe Html))
+                   -> WriterOptions
+                   -> Text
+                   -> [a]
+                   -> StateT PWH.WriterState (GH master) (Maybe Html)
+tableOfContentsAbs _ _ _ [] = return Nothing
+tableOfContentsAbs writer opts prefix sects = do
+  contents  <- mapM (writer opts { writerIgnoreNotes = True } prefix) sects
+  return $ case catMaybes contents of
+             [] -> Nothing
+             tocList -> Just $ PWH.unordList opts tocList
+
+-- | HTML writer from [GititToc] to HTML
+tableOfContents :: HasGitit master
+                => WriterOptions
+                -> Text
+                -> [GititToc]
+                -> StateT PWH.WriterState (GH master) (Maybe Html)
+tableOfContents = tableOfContentsAbs gititTocToListItem
+
+-- | Convert section number to string
+showSecNum :: [Int] -> String
+showSecNum = intercalate "." . map show
+
+-- | HTML writer from a single GititToc to HTML
+gititTocToListItem :: HasGitit master
+                   => WriterOptions
+                   -> Text
+                   -> GititToc
+                   -> StateT PWH.WriterState (GH master) (Maybe Html)
+-- Don't include the empty headers created in slide shows
+-- shows when an hrule is used to separate slides without a new title:
+gititTocToListItem _ _ (GititSec _ _ _ [Str "\0"] _) = return Nothing
+
+gititTocToListItem opts prefix (GititSec lev num (id',classes,_) headerText subsecs)
+  | lev <= writerTOCDepth opts = do
+  let num' = zipWith (+) num (writerNumberOffset opts ++ repeat 0)
+  let sectnum = if writerNumberSections opts && not (null num) &&
+                   "unnumbered" `notElem` classes
+                   then (H.span ! A.class_ "toc-section-number"
+                        $ toHtml $ showSecNum num') >> preEscapedToHtml (" " :: String)
+                   else mempty
+  txt <- liftM (sectnum >>) $ PWH.inlineListToHtml opts headerText
+  subHeads <- liftM catMaybes (mapM (gititTocToListItem opts prefix) subsecs)
+  let subList = if null subHeads
+                   then mempty
+                   else PWH.unordList opts subHeads
+  -- in reveal.js, we need #/apples, not #apples:
+  let revealSlash = ['/' | writerSlideVariant opts == RevealJsSlides]
+  if null id'
+              then return $ Just $ H.a (toHtml txt) >> subList
+              else do
+                  toMaster <- lift getRouteToParent
+                  let route = ViewR $ textToPage prefix
+                  toUrl <- lift $ lift getUrlRender
+                  return $ Just $ (H.a ! A.href
+                                          (toValue $ T.unpack (toUrl $ toMaster route)
+                                           ++ "#" ++ revealSlash ++ writerIdentifierPrefix opts ++ id')
+                                        $ toHtml txt) >> subList
+
+gititTocToListItem opts _ (GititLink ref (s, tit)) = do
+  | lev <= writerTOCDepth opts = do
+  let target = textToPage $ T.pack $ inlinesToString ref
+  linkText <- PWH.inlineListToHtml opts ref
+  let s' = case s of
+             '#':xs | writerSlideVariant opts == RevealJsSlides -> '#':'/':xs
+             _ -> s
+  let link = H.a ! A.href (toValue s') $ linkText
+      link' = if ref == [Str (unEscapeString s)]
+                 then link ! A.class_ "uri"
+                 else link
+      link'' = if null tit
+                  then link'
+                  else link' ! A.title (toValue tit)
+  mbTocAndPageHtml <- lift $ wikifyAndCache target Nothing
+  case mbTocAndPageHtml of
+    Just (tocs, _, _) -> do
+                          mbToc <- tableOfContents opts (pageToText target) tocs
+                          case mbToc of
+                            Just toc -> return $ Just $ link'' >> toc
+                            -- referred page has no toc
+                            Nothing -> return $ Just link''
+    -- referred page does not exist or could not be parsed
+    Nothing -> return $ Just link''
+
+gititTocToListItem _ _ _ = return Nothing
+
+-- stolen from gitit ContentTransfomers.hs
+-- | Convert a list of inlines into a string.
+inlinesToString :: [Inline] -> String
+inlinesToString = concatMap go
+  where go x = case x of
+               Str s                   -> s
+               Emph xs                 -> concatMap go xs
+               Strong xs               -> concatMap go xs
+               Strikeout xs            -> concatMap go xs
+               Superscript xs          -> concatMap go xs
+               Subscript xs            -> concatMap go xs
+               SmallCaps xs            -> concatMap go xs
+               Quoted DoubleQuote xs   -> '"' : (concatMap go xs ++ "\"")
+               Quoted SingleQuote xs   -> '\'' : (concatMap go xs ++ "'")
+               Cite _ xs               -> concatMap go xs
+               Code _ s                -> s
+               Space                   -> " "
+               LineBreak               -> " "
+               Math DisplayMath s      -> "$$" ++ s ++ "$$"
+               Math InlineMath s       -> "$" ++ s ++ "$"
+               RawInline (Format "tex") s -> s
+               RawInline _ _           -> ""
+               Link xs _               -> concatMap go xs
+               Image xs _              -> concatMap go xs
+               Note _                  -> ""
+               Span _ xs               -> concatMap go xs
+
+-- | Keeps only sections and links from Elements
+stripElementsForToc :: [Element] -> [GititToc]
+stripElementsForToc element = concat  $ fmap stripElementForToc element
+
+stripElementForToc :: Element -> [GititToc]
+stripElementForToc (Sec lev num attr headerText subsecs) =
+    [GititSec lev num attr headerText (concat $ fmap stripElementForToc subsecs)]
+stripElementForToc (Blk block) = fmap (uncurry GititLink) (fetchLink block)
+
+fetchLink :: Block -> [([Inline], Target)]
+fetchLink = queryWith isLinkInPar
+    where isLinkInPar (Para [Link inlines target]) = [(inlines, target)]
+          isLinkInPar _ = []
