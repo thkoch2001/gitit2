@@ -233,6 +233,7 @@ pathForCategories :: Page -> GH master FilePath
 pathForCategories p = do
   conf <- getConfig
   return $ T.unpack (toMessage p) <> page_extension conf </> "categories"
+
 pathForFile :: Page -> GH master FilePath
 pathForFile p = return $ T.unpack $ toMessage p
 
@@ -415,6 +416,7 @@ wikifyAndCache page mbrev = do
               Nothing -> return Nothing)
       (return . Just)
       mbTocAndPageHtml
+
 view :: HasGitit master => Maybe RevisionId -> Page -> GH master Html
 view mbrev page = do
   mbTocAndPageHtml <- wikifyAndCache page mbrev
@@ -443,7 +445,8 @@ view mbrev page = do
    where layout tabs tocHierarchy categories cont = do
            toMaster <- getRouteToParent
            contw <- toWikiPage cont
-           mbToc <- extractToc tocHierarchy
+           mbTocDepth <- toc_depth <$> getConfig
+           mbToc <- extractToc mbTocDepth tocHierarchy
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
                               , pgTabs = tabs
@@ -477,18 +480,22 @@ view mbrev page = do
                        |]
 
 extractTocAbs :: HasGitit master
-              => (WriterOptions
+              => Maybe Int
+              -> (WriterOptions
                       -> Text
                       -> [a]
                       -> StateT PWH.WriterState (GH master) (Maybe Html))
               -> [a]
               -> GH master (Maybe (WidgetT master IO ()))
-extractTocAbs tocFun tocHierrarchy = do
-  let tocFunS = tocFun def { writerWrapText = False
-                           , writerHtml5 = True
-                           , writerHighlight = True
-                           , writerHTMLMathMethod = MathML Nothing
-                           }
+extractTocAbs mbTocDepth tocFun tocHierrarchy = do
+  let opts = def { writerWrapText = False
+                 , writerHtml5 = True
+                 , writerHighlight = True
+                 , writerHTMLMathMethod = MathML Nothing
+                 }
+  let tocFunS = tocFun (maybe opts
+                        (\tocDepth -> opts { writerTOCDepth = tocDepth})
+                        mbTocDepth)
                 "" tocHierrarchy
   mbTocRendered <- evalStateT tocFunS PWH.defaultWriterState
   case mbTocRendered of
@@ -497,9 +504,11 @@ extractTocAbs tocFun tocHierrarchy = do
     Nothing -> return Nothing
 
 extractToc :: HasGitit master
-           => [GititToc]
+           => Maybe Int
+           -> [GititToc]
            -> GH master (Maybe (WidgetT master IO ()))
-extractToc = extractTocAbs tableOfContents
+extractToc mbTocDepth = extractTocAbs mbTocDepth tableOfContents
+
 getIndexBaseR :: HasGitit master => GH master Html
 getIndexBaseR = getIndexFor []
 
@@ -605,7 +614,7 @@ contentsToWikiPage page contents = do
   let pageToPrefix (Page []) = T.empty
       pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks (pageToPrefix page) doc
-  let tocHierarchy = stripElementsForToc $ hierarchicalize blocks
+  let tocHierarchy = stripElementsForToc 0 $ hierarchicalize blocks
   foldM applyPlugin
            WikiPage {
              wpName        = pageToText page
@@ -1354,6 +1363,7 @@ cacheContent path (TypedContent ct content) = do
             _ -> liftIO $
               -- TODO replace w logging
               putStrLn $ "Can't cache " ++ path
+
 cacheLBS :: FilePath -> ByteString -> GH master ()
 cacheLBS cachepath lbs = do
   conf <- getConfig
@@ -1598,7 +1608,7 @@ gititTocToListItem opts prefix (GititSec lev num (id',classes,_) headerText subs
                                            ++ "#" ++ revealSlash ++ writerIdentifierPrefix opts ++ id')
                                         $ toHtml txt) >> subList
 
-gititTocToListItem opts _ (GititLink ref (s, tit)) = do
+gititTocToListItem opts _ (GititLink lev ref (s, tit))
   | lev <= writerTOCDepth opts = do
   let target = textToPage $ T.pack $ inlinesToString ref
   linkText <- PWH.inlineListToHtml opts ref
@@ -1615,7 +1625,9 @@ gititTocToListItem opts _ (GititLink ref (s, tit)) = do
   mbTocAndPageHtml <- lift $ wikifyAndCache target Nothing
   case mbTocAndPageHtml of
     Just (tocs, _, _) -> do
-                          mbToc <- tableOfContents opts (pageToText target) tocs
+                          mbToc <- tableOfContents
+                                   opts { writerTOCDepth = writerTOCDepth opts - lev }
+                                   (pageToText target) tocs
                           case mbToc of
                             Just toc -> return $ Just $ link'' >> toc
                             -- referred page has no toc
@@ -1653,13 +1665,13 @@ inlinesToString = concatMap go
                Span _ xs               -> concatMap go xs
 
 -- | Keeps only sections and links from Elements
-stripElementsForToc :: [Element] -> [GititToc]
-stripElementsForToc element = concat  $ fmap stripElementForToc element
+stripElementsForToc :: Int -> [Element] -> [GititToc]
+stripElementsForToc lev elements = concat  $ fmap (stripElementForToc lev) elements
 
-stripElementForToc :: Element -> [GititToc]
-stripElementForToc (Sec lev num attr headerText subsecs) =
-    [GititSec lev num attr headerText (concat $ fmap stripElementForToc subsecs)]
-stripElementForToc (Blk block) = fmap (uncurry GititLink) (fetchLink block)
+stripElementForToc :: Int -> Element -> [GititToc]
+stripElementForToc _ (Sec lev num attr headerText subsecs) =
+    [GititSec lev num attr headerText (stripElementsForToc (lev + 1) subsecs)]
+stripElementForToc lev (Blk block) = fmap (uncurry (GititLink lev)) (fetchLink block)
 
 fetchLink :: Block -> [([Inline], Target)]
 fetchLink = queryWith isLinkInPar

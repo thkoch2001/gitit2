@@ -48,6 +48,7 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_help_page        :: Text
                  , cfg_max_upload_size  :: String
                  , cfg_latex_engine     :: Maybe FilePath
+                 , cfg_toc_depth        :: Maybe Int
                  }
 
 data FoundationSettings  = FoundationSettings {
@@ -88,6 +89,7 @@ parseConfig os = Conf
   <*> os `parseElem` "help_page" .!= "Help"
   <*> os `parseElem` "max_upload_size" .!= "1M"
   <*> os `parseElem` "latex_engine"
+  <*> os `parseElem` "toc_depth"
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -154,5 +156,6 @@ gititConfigFromConf conf = do
                            , front_page = cfg_front_page conf
                            , help_page = cfg_help_page conf
                            , latex_engine = cfg_latex_engine conf
+                           , toc_depth = cfg_toc_depth conf
                            }
   return gconfig

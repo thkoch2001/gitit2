@@ -14,3 +14,4 @@ front_page: Front Page
 help_page: Help
 max_upload_size: 1M
 latex_engine: xelatex
+toc_depth: 3
