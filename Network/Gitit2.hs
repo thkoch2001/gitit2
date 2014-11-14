@@ -199,6 +199,14 @@ convertWikiLinks _ x = return x
 addWikiLinks :: Text -> Pandoc -> GH master Pandoc
 addWikiLinks prefix = bottomUpM (convertWikiLinks prefix)
 
+identifyParWikiLinks :: Block -> GH master Block
+identifyParWikiLinks (Para [Link inlines target]) = do
+  ident <- newIdent
+  return $ Div (T.unpack ident,["subpage-link"],[]) [Para [Link inlines target]]
+identifyParWikiLinks x = return x
+
+addSubpageClass :: Pandoc -> GH master Pandoc
+addSubpageClass = bottomUpM identifyParWikiLinks
 sanitizePandoc :: Pandoc -> Pandoc
 sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
   where sanitizeBlock (RawBlock _ _) = Text.Pandoc.Null
@@ -613,7 +621,8 @@ contentsToWikiPage page contents = do
   let doc = reader $ toString b
   let pageToPrefix (Page []) = T.empty
       pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
-  Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks (pageToPrefix page) doc
+  docWithIdForSubpage <- addSubpageClass doc
+  Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks (pageToPrefix page) docWithIdForSubpage
   let tocHierarchy = stripElementsForToc (extended_toc conf) 0 $ hierarchicalize blocks
   foldM applyPlugin
            WikiPage {
@@ -1608,7 +1617,7 @@ gititTocToListItem opts prefix (GititSec lev num (id',classes,_) headerText subs
                                            ++ "#" ++ revealSlash ++ writerIdentifierPrefix opts ++ id')
                                         $ toHtml txt) >> subList
 
-gititTocToListItem opts _ (GititLink lev ref (s, tit))
+gititTocToListItem opts _ (GititLink lev attr ref (s, tit))
   | lev <= writerTOCDepth opts = do
   let target = textToPage $ T.pack $ inlinesToString ref
   linkText <- PWH.inlineListToHtml opts ref
@@ -1629,7 +1638,11 @@ gititTocToListItem opts _ (GititLink lev ref (s, tit))
                                    opts { writerTOCDepth = writerTOCDepth opts - lev }
                                    (pageToText target) tocs
                           case mbToc of
-                            Just toc -> return $ Just $ link'' >> toc
+                            Just toc -> return $ Just $
+                                        let (ident, classes, _) = attr in
+                                        H.div ! A.id (toValue ("toc-" ++ ident))
+                                             ! A.class_ (toValue ("toc-" ++  head classes)) $
+                                        link'' >> toc
                             -- referred page has no toc
                             Nothing -> return $ Just link''
     -- referred page does not exist or could not be parsed
@@ -1672,11 +1685,13 @@ stripElementsForToc extToc lev elements =
 stripElementForToc :: Bool -> Int -> Element -> [GititToc]
 stripElementForToc extToc _ (Sec lev num attr headerText subsecs) =
     [GititSec lev num attr headerText (stripElementsForToc extToc (lev + 1) subsecs)]
-stripElementForToc False lev (Blk block) = []
+stripElementForToc False _ _  = []
 stripElementForToc True lev (Blk block) =
-    fmap (uncurry (GititLink lev)) (fetchLink block)
+    fmap (\(attr, inlines, target) -> (GititLink lev attr inlines target)) (fetchLink block)
 
-fetchLink :: Block -> [([Inline], Target)]
+
+fetchLink :: Block -> [(Text.Pandoc.Attr, [Inline], Target)]
 fetchLink = queryWith isLinkInPar
-    where isLinkInPar (Para [Link inlines target]) = [(inlines, target)]
+    where isLinkInPar (Div (ident,["subpage-link"],[]) [Para [Link inlines target]])
+              = [((ident,["subpage-link"],[]), inlines, target)]
           isLinkInPar _ = []
