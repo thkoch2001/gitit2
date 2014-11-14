@@ -81,6 +81,9 @@ div.container { margin: 0; }
 div#TOC { background-color: #f9f9f9; border: 10px solid white; margin: 0.8em; margin-right: 0; padding: 0.4em; }
 #TOC ul { padding: 0 0 0 1em; margin: 0; list-style: none; }
 
+.subpage-link { background-color: #f9f9f9; border: 10px solid white; margin: 0.8em; margin-right: 0; padding: 0.4em; }
+.subpage-link ul { padding: 0 0 0 1em; margin: 0; list-style: none; }
+
 #sidebar input, #sidebar select { font-size:  93%; padding: 0.1em; }
 #sidebar input[type='submit'] { border: none; background-color: #ccc; color: white; }
 

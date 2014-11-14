@@ -50,6 +50,7 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_latex_engine     :: Maybe FilePath
                  , cfg_toc_depth        :: Maybe Int
                  , cfg_extended_toc     :: Bool
+                 , cfg_subpage_toc_in_content :: Bool
                  }
 
 data FoundationSettings  = FoundationSettings {
@@ -92,6 +93,7 @@ parseConfig os = Conf
   <*> os `parseElem` "latex_engine"
   <*> os `parseElem` "toc_depth"
   <*> os `parseElem` "extended_toc" .!= True
+  <*> os `parseElem` "subpage_toc_in_content" .!= True
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -160,5 +162,6 @@ gititConfigFromConf conf = do
                            , latex_engine = cfg_latex_engine conf
                            , toc_depth = cfg_toc_depth conf
                            , extended_toc = cfg_extended_toc conf
+                           , subpage_toc_in_content =  cfg_subpage_toc_in_content conf
                            }
   return gconfig

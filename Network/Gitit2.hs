@@ -455,6 +455,7 @@ view mbrev page = do
            contw <- toWikiPage cont
            mbTocDepth <- toc_depth <$> getConfig
            mbToc <- extractToc mbTocDepth tocHierarchy
+           subpageTocInContent <- subpage_toc_in_content <$> getConfig
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
                               , pgTabs = tabs
@@ -470,6 +471,14 @@ view mbrev page = do
                                           };
                                        });
                                 |]
+                       when subpageTocInContent
+                           (void $ toWidget [julius|
+                                      $(".toc-subpage-link").each(function(_index, tocSubpageLink){
+                                        var jTocSubpageLink = $(tocSubpageLink);
+                                        var subpageLinkIdent = jTocSubpageLink.attr("id").substr(4);
+                                        $("#" + subpageLinkIdent).html(jTocSubpageLink.clone().children());
+                                      });
+                                   |])
                        atomLink (toMaster $ AtomPageR page)
                           "Atom link for this page"
                        [whamlet|

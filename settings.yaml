@@ -15,3 +15,5 @@ help_page: Help
 max_upload_size: 1M
 latex_engine: xelatex
 toc_depth: 3
+# extended_toc: false
+# subpage_toc_in_content: false
