@@ -76,6 +76,7 @@ data GititConfig = GititConfig{
      , help_page        :: Text                     -- ^ Help page
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
      , toc_depth        :: Maybe Int                -- ^ Depth of table of contents
+     , extended_toc     :: Bool                     -- ^ Toc extends over subpage
      }
 
 -- | Path to a wiki page.  Page and page components can't begin with '_'.

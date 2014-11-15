@@ -614,7 +614,7 @@ contentsToWikiPage page contents = do
   let pageToPrefix (Page []) = T.empty
       pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks (pageToPrefix page) doc
-  let tocHierarchy = stripElementsForToc 0 $ hierarchicalize blocks
+  let tocHierarchy = stripElementsForToc (extended_toc conf) 0 $ hierarchicalize blocks
   foldM applyPlugin
            WikiPage {
              wpName        = pageToText page
@@ -1665,13 +1665,16 @@ inlinesToString = concatMap go
                Span _ xs               -> concatMap go xs
 
 -- | Keeps only sections and links from Elements
-stripElementsForToc :: Int -> [Element] -> [GititToc]
-stripElementsForToc lev elements = concat  $ fmap (stripElementForToc lev) elements
+stripElementsForToc :: Bool -> Int -> [Element] -> [GititToc]
+stripElementsForToc extToc lev elements =
+    concat  $ fmap (stripElementForToc extToc  lev) elements
 
-stripElementForToc :: Int -> Element -> [GititToc]
-stripElementForToc _ (Sec lev num attr headerText subsecs) =
-    [GititSec lev num attr headerText (stripElementsForToc (lev + 1) subsecs)]
-stripElementForToc lev (Blk block) = fmap (uncurry (GititLink lev)) (fetchLink block)
+stripElementForToc :: Bool -> Int -> Element -> [GititToc]
+stripElementForToc extToc _ (Sec lev num attr headerText subsecs) =
+    [GititSec lev num attr headerText (stripElementsForToc extToc (lev + 1) subsecs)]
+stripElementForToc False lev (Blk block) = []
+stripElementForToc True lev (Blk block) =
+    fmap (uncurry (GititLink lev)) (fetchLink block)
 
 fetchLink :: Block -> [([Inline], Target)]
 fetchLink = queryWith isLinkInPar
