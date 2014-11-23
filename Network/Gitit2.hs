@@ -41,9 +41,10 @@ import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
 import Control.Monad (when, unless, filterM, mplus, foldM)
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import Data.Text (Text)
 import Data.Text.Encoding
-import Data.ByteString.Lazy (ByteString, fromChunks, pack, hGetContents)
+import Data.ByteString.Lazy (ByteString, fromChunks, pack, hGetContents, fromStrict)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
