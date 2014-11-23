@@ -407,8 +407,8 @@ wikifyAndCache page mbrev = do
   catPath <- pathForCategories page
   mbTocAndPageHtml <- do
     mbPageHtml <- tryPageCache pagePath
-    mbTocPandoc <- tryTocCache tocPath
-    mbCatTexts <- tryCatCache catPath
+    mbTocPandoc <- tryJSONCache tocPath
+    mbCatTexts <- tryJSONCache catPath
     return $ (,,) <$>  mbTocPandoc <*> mbCatTexts <*> mbPageHtml
   maybe (do
             mbcont <- getRawContents pagePath mbrev
@@ -418,8 +418,8 @@ wikifyAndCache page mbrev = do
                           htmlContents <- caching pagePath $ pageToHtml wikipage
                           let tocHierarchy = wpTocHierarchy wikipage
                               categories = wpCategories wikipage
-                          cacheLBS tocPath $ ASON.encode tocHierarchy
-                          cacheLBS catPath $ pack $ read $ show categories
+                          cacheJSON tocPath tocHierarchy
+                          cacheJSON catPath categories
                           return $ Just (tocHierarchy, categories, htmlContents)
               Nothing -> return Nothing)
       (return . Just)
@@ -1384,13 +1384,13 @@ cacheContent path (TypedContent ct content) = do
               -- TODO replace w logging
               putStrLn $ "Can't cache " ++ path
 
-cacheLBS :: FilePath -> ByteString -> GH master ()
-cacheLBS cachepath lbs = do
+cacheJSON :: ToJSON a => FilePath -> a -> GH master ()
+cacheJSON cachepath a = do
   conf <- getConfig
   when (use_cache conf) $ liftIO $ do
                           let fullpath = cache_dir conf </> cachepath
                           createDirectoryIfMissing True $ takeDirectory fullpath
-                          B.writeFile fullpath lbs
+                          B.writeFile fullpath (ASON.encode a)
 
 tryPageCache :: FilePath -> GH master (Maybe Html)
 tryPageCache  = processDirCache
@@ -1398,9 +1398,9 @@ tryPageCache  = processDirCache
                    pageString <- liftIO $ TIO.readFile $ fullpath </> x
                    return $ Just $ preEscapedToHtml pageString)
 
-tryTocCache :: FilePath -> GH master (Maybe [GititToc])
-tryTocCache = processDirCache
-                (\ fullpath x -> liftIO $
+tryJSONCache :: FromJSON a => FilePath -> GH master (Maybe [a])
+tryJSONCache = processDirCache
+                 (\ fullpath x -> liftIO $
                      withFile (fullpath </> x) ReadMode $ \hnd -> do
                        pageString <- hGetContents hnd
                        return $ ASON.decode pageString)
@@ -1412,7 +1412,6 @@ tryCatCache = processDirCache
                        pageString <- BS.hGetContents hnd
                        -- TODO: simplify
                        return $ Just $ map T.pack $ read $ show pageString)
-
 tryCache :: FilePath -> GH master ()
 tryCache = void .
            processDirCache
