@@ -454,7 +454,7 @@ view mbrev page = do
            toMaster <- getRouteToParent
            contw <- toWikiPage cont
            mbTocDepth <- toc_depth <$> getConfig
-           mbToc <- extractToc mbTocDepth tocHierarchy
+           mbToc <- extractToc mbTocDepth (pageToText page) tocHierarchy
            subpageTocInContent <- subpage_toc_in_content <$> getConfig
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
@@ -502,9 +502,10 @@ extractTocAbs :: HasGitit master
                       -> Text
                       -> [a]
                       -> StateT PWH.WriterState (GH master) (Maybe Html))
+              -> Text
               -> [a]
               -> GH master (Maybe (WidgetT master IO ()))
-extractTocAbs mbTocDepth tocFun tocHierrarchy = do
+extractTocAbs mbTocDepth tocFun prefix tocHierrarchy = do
   let opts = def { writerWrapText = False
                  , writerHtml5 = True
                  , writerHighlight = True
@@ -513,7 +514,7 @@ extractTocAbs mbTocDepth tocFun tocHierrarchy = do
   let tocFunS = tocFun (maybe opts
                         (\tocDepth -> opts { writerTOCDepth = tocDepth})
                         mbTocDepth)
-                "" tocHierrarchy
+                prefix tocHierrarchy
   mbTocRendered <- evalStateT tocFunS PWH.defaultWriterState
   case mbTocRendered of
     Just tocRendered -> return $ Just $ toWidget tocRendered
@@ -522,9 +523,10 @@ extractTocAbs mbTocDepth tocFun tocHierrarchy = do
 
 extractToc :: HasGitit master
            => Maybe Int
+           -> Text
            -> [GititToc]
            -> GH master (Maybe (WidgetT master IO ()))
-extractToc mbTocDepth = extractTocAbs mbTocDepth tableOfContents
+extractToc mbTocDepth prefix = extractTocAbs mbTocDepth tableOfContents prefix
 
 getIndexBaseR :: HasGitit master => GH master Html
 getIndexBaseR = getIndexFor []
