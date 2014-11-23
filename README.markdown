@@ -37,12 +37,12 @@ create, edit, and modify pages.  You can search, view
 history, and comment.  You can export in any format that
 pandoc supports.
 
-* User login -- currently there is no access control.
-* Preview in edit.
+* ~~User login -- currently there is no access control.~~
+* ~~Preview in edit.~~
 * Loading plugins (the plugin API works, but there is not
   yet support for specifying plugins in the config file).
 * Page locking (no-delete, no-edit).
-* Command-line option to specify a config file.
+* ~~Command-line option to specify a config file.~~
 * Site initialization wizard.
 * Documentation.
 * Multiple options for treatment of math in HTML.
