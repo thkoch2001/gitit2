@@ -1,19 +1,41 @@
-# approot is the base path used for links in your application
-# it defaults to localhost (here http://localhost:3000)
-# approot: http://mydomain:myport
+# approot is the base path used for links in your application,
+# for example, 'approot:http://mydomain:myport'
+# In particular, you should set this if you use port redirection.
+# it defaults to localhost and the port set below:
+# approot: http://localhost:3000
+
+# port to run gitit
 port: 3000
-repository_path: wikidata
-repository_type: git
-page_extension: .page
-default_format: markdown
+
+# repository_path: wikidata
+# repository_type: git
+# page_extension: .page
+# default_format: markdown
+# static resource directory
+# static_dir: static
+
+# mime_types_file
+
 use_mathjax: true
-feed_days: 14
+
+# feed_days: 14
+# feed_minutes: 15
+# pandoc_user_data
+
 use_cache: true
-cache_dir: cache
-front_page: Front Page
-help_page: Help
-max_upload_size: 1M
+
+# cache_dir: cache
+# front_page: Front Page
+# help_page: Help
+# max_upload_size: 1M
+
 latex_engine: xelatex
-toc_depth: 3
+
+# toc_depth: 3
+
+# Shows the toc of subpage in the toc of page. A supage is an internal
+# wikilink alone in a paragraph.
 # extended_toc: false
+
+# Replace a wikilink subpage with the toc of the subpage
 # subpage_toc_in_content: false
