@@ -1,3 +1,7 @@
+### This is the default settings file read bz any invocation of `gitit2`
+### All settings here can be overridden in additional files with the invocation:
+### `gitit2 -f additional-file1.yaml -f additional-file2.yaml`
+
 # approot is the base path used for links in your application,
 # for example, 'approot:http://mydomain:myport'
 # In particular, you should set this if you use port redirection.
@@ -5,6 +9,8 @@
 # approot: http://localhost:3000
 
 # port to run gitit
+# the port can be given with the option `-p`, for example:
+# `gitit2 -p 3000`
 port: 3000
 
 # repository_path: wikidata
