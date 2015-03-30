@@ -40,7 +40,8 @@ import Control.Applicative
 import Control.Monad (when, unless, filterM, mplus, foldM)
 import qualified Data.Text as T
 import Data.Text (Text)
-import Data.ByteString.Lazy (ByteString, fromChunks)
+import Data.Text.Encoding
+import Data.ByteString.Lazy (ByteString, fromChunks, fromStrict)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -353,9 +354,12 @@ getViewR page = do
   pathForFile page >>= tryCache
   view Nothing page
 
-postPreviewR :: HasGitit master => GH master Html
-postPreviewR =
-  undefined -- TODO: get raw contents and settings from post params
+postPreviewR :: HasGitit master => Page -> GH master Html
+postPreviewR page = do
+  contents <- lift $ runInputPost $ ireq textField "contents"
+  wikipage <- contentsToWikiPage page (fromStrict $ encodeUtf8 contents)
+  pageToHtml wikipage
+  -- undefined -- TODO: get raw contents and settings from post params
   -- return HTML for rendered page contents
   -- a javascript gizmo will display this in a modal or something
   -- factor out some of the code from view
@@ -430,6 +434,7 @@ view mbrev page = do
                                $forall category <- categories
                                  <li><a href=@{toMaster $ CategoryR category}>#{category}
                        |]
+
 
 getIndexBaseR :: HasGitit master => GH master Html
 getIndexBaseR = getIndexFor []
@@ -714,12 +719,36 @@ showEditForm page route enctype form =
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [EditTab]
                      , pgSelectedTab = EditTab }
+  $ do
+    toWidget [julius|
+     function updatePreviewPane() {
+       var url = location.pathname.replace(/_edit\//,"_preview/");
+       $.post(
+           url,
+           {"contents" : $("#editpane").attr("value")},
+           function(data) {
+             $('#previewpane').html(data);
+             // Process any mathematics if we're using MathML
+             if (typeof(convert) == 'function') { convert(); }
+             // Process any mathematics if we're using jsMath
+             if (typeof(jsMath) == 'object')    { jsMath.ProcessBeforeShowing(); }
+             // Process any mathematics if we're using MathJax
+             if (typeof(window.MathJax) == 'object') {
+               // http://docs.mathjax.org/en/latest/typeset.html
+               var math = document.getElementById("MathExample");
+               MathJax.Hub.Queue(["Typeset",MathJax.Hub,math]);
+             }
+           },
+           "html");
+     };   |]
     [whamlet|
       <h1>#{page}</h1>
       <div #editform>
         <form method=post action=@{route} enctype=#{enctype}>
           ^{form}
           <input type=submit>
+          <input type=button onclick="updatePreviewPane()" value="Preview">
+     <div #previewpane>
     |]
 
 postUpdateR :: HasGitit master
@@ -773,6 +802,7 @@ editForm :: HasGitit master
          -> MForm (HandlerT master IO) (FormResult Edit, WidgetT master IO ())
 editForm mbedit = renderDivs $ Edit
     <$> areq textareaField (fieldSettingsLabel MsgPageSource)
+                             {fsId = Just "editpane"}
            (editContents <$> mbedit)
     <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
            (editComment <$> mbedit)
@@ -1399,6 +1429,3 @@ hGetLinesTill h end = do
      else do
        rest <- hGetLinesTill h end
        return (next:rest)
-
-
-
