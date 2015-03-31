@@ -39,7 +39,8 @@ import Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8, hierarchica
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
-import Control.Monad (when, unless, filterM, mplus, foldM)
+import Control.Monad (when, unless, filterM, mplus, foldM, void, liftM)
+import Control.Monad.State(StateT, evalStateT)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Text (Text)
