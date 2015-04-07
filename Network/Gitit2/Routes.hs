@@ -202,6 +202,6 @@ mkYesodSubData "Gitit" [parseRoutesNoCheck|
 /_expire ExpireHomeR POST
 /_categories CategoriesR GET
 /_category/#Text CategoryR GET
-/_preview PreviewR POST
+/_preview/*Page PreviewR POST
 /*Page     ViewR GET
 |]
