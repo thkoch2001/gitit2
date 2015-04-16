@@ -308,7 +308,7 @@ getRawR page = do
 
 getDeleteR :: HasGitit master => Page -> GH master Html
 getDeleteR page = do
-  requireUser
+  requireEditor
   fs <- filestore <$> getYesod
   path <- pathForPage page
   pageTest <- liftIO $ try $ latest fs path
@@ -337,7 +337,7 @@ getDeleteR page = do
 
 postDeleteR :: HasGitit master => Page -> GH master Html
 postDeleteR page = do
-  user <- requireUser
+  user <- requireEditor
   fs <- filestore <$> getYesod
   mr <- getMessageRender
   fileToDelete <- lift $ runInputPost $ ireq textField "fileToDelete"
@@ -654,7 +654,7 @@ searchResults patterns = do
 
 getEditR :: HasGitit master => Page -> GH master Html
 getEditR page = do
-  requireUser
+  requireEditor
   fs <- filestore <$> getYesod
   path <- pathForPage page
   mbcont <- getRawContents path Nothing
@@ -670,7 +670,7 @@ getEditR page = do
 getRevertR :: HasGitit master
            => RevisionId -> Page -> GH master Html
 getRevertR rev page = do
-  requireUser
+  requireEditor
   path <- pathForPage page
   mbcont <- getRawContents path (Just rev)
   case mbcont of
@@ -684,7 +684,7 @@ edit :: HasGitit master
      -> Page
      -> GH master Html
 edit revert txt mbrevid page = do
-  requireUser
+  requireEditor
   let contents = Textarea $ T.pack txt
   mr <- getMessageRender
   let comment = if revert
@@ -733,7 +733,7 @@ postCreateR = update' Nothing
 update' :: HasGitit master
        => Maybe RevisionId -> Page -> GH master Html
 update' mbrevid page = do
-  user <- requireUser
+  user <- requireEditor
   ((result, widget), enctype) <- lift $ runFormPost $ editForm Nothing
   fs <- filestore <$> getYesod
   toMaster <- getRouteToParent
@@ -1124,7 +1124,7 @@ setFilename fname = addHeader "Content-Disposition"
 
 getUploadR :: HasGitit master => GH master Html
 getUploadR = do
-  requireUser
+  requireEditor
   (form, enctype) <- lift $ generateFormPost $ uploadForm Nothing
   showUploadForm enctype form
 
@@ -1185,7 +1185,7 @@ uploadForm mbupload =
 
 postUploadR :: HasGitit master => GH master Html
 postUploadR = do
-  user <- requireUser
+  user <- requireEditor
   ((result, widget), enctype) <- lift $ runFormPost $ uploadForm Nothing
   fs <- filestore <$> getYesod
   case result of

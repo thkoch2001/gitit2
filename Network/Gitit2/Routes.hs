@@ -39,6 +39,8 @@ class (Yesod master, RenderMessage master FormMessage,
   maybeUser   :: GH master (Maybe GititUser)
   -- | Return user information or redirect to login page.
   requireUser :: GH master GititUser
+  -- | Return user information or redirect to login page.
+  requireEditor :: GH master GititUser
   -- | Gitit subsite page layout.
   makePage :: PageLayout -> WidgetT master IO () -> GH master Html
   -- | Plugins.
@@ -69,6 +71,7 @@ data GititConfig = GititConfig{
      , front_page       :: Text                     -- ^ Front page of wiki
      , help_page        :: Text                     -- ^ Help page
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
+     , editors          :: Maybe [Text]             -- ^ Users allowed to actually edit
      }
 
 -- | Path to a wiki page.  Page and page components can't begin with '_'.
