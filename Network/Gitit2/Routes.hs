@@ -40,7 +40,7 @@ class (Yesod master, RenderMessage master FormMessage,
   -- | Return user information or redirect to login page.
   requireUser :: GH master GititUser
   -- | Return user information or redirect to login page.
-  requireEditor :: GH master GititUser
+  isEditor :: GititUser -> GH master Bool
   -- | Gitit subsite page layout.
   makePage :: PageLayout -> WidgetT master IO () -> GH master Html
   -- | Plugins.
