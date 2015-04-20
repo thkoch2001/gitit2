@@ -48,6 +48,10 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_help_page        :: Text
                  , cfg_max_upload_size  :: String
                  , cfg_latex_engine     :: Maybe FilePath
+                 , cfg_editors          :: Maybe Text
+                 , cfg_toc_depth        :: Maybe Int
+                 , cfg_extended_toc     :: Bool
+                 , cfg_subpage_toc_in_content :: Bool
                  }
 
 data FoundationSettings  = FoundationSettings {
@@ -88,6 +92,10 @@ parseConfig os = Conf
   <*> os `parseElem` "help_page" .!= "Help"
   <*> os `parseElem` "max_upload_size" .!= "1M"
   <*> os `parseElem` "latex_engine"
+  <*> os `parseElem` "editors"
+  <*> os `parseElem` "toc_depth"
+  <*> os `parseElem` "extended_toc" .!= True
+  <*> os `parseElem` "subpage_toc_in_content" .!= True
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -139,6 +147,10 @@ gititConfigFromConf conf = do
                   Just f  -> return f
                   Nothing -> err 11 $ "Unknown default format: " ++
                                    T.unpack (cfg_default_format conf)
+  
+  editorEmails <- case cfg_editors conf of
+                 Just emails -> return (Just (T.splitOn (T.pack " ") emails))
+                 Nothing -> return Nothing
 
   let gconfig = GititConfig{ mime_types = mimes
                            , default_format = format
@@ -154,5 +166,9 @@ gititConfigFromConf conf = do
                            , front_page = cfg_front_page conf
                            , help_page = cfg_help_page conf
                            , latex_engine = cfg_latex_engine conf
+                           , editors = editorEmails
+                           , toc_depth = cfg_toc_depth conf
+                           , extended_toc = cfg_extended_toc conf
+                           , subpage_toc_in_content =  cfg_subpage_toc_in_content conf
                            }
   return gconfig

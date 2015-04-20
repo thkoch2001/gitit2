@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns          #-}
 module Network.Gitit2.Routes where
 
@@ -16,6 +17,11 @@ import Text.Blaze.Html hiding (contents)
 import Text.Pandoc (Inline, Block)
 import Yesod hiding (MsgDelete)
 import Yesod.Static
+import Data.Typeable
+import Data.Data
+import GHC.Generics
+import qualified Data.Aeson as ASON
+import Text.Pandoc
 
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
@@ -39,6 +45,8 @@ class (Yesod master, RenderMessage master FormMessage,
   maybeUser   :: GH master (Maybe GititUser)
   -- | Return user information or redirect to login page.
   requireUser :: GH master GititUser
+  -- | Return user information or redirect to login page.
+  isEditor :: GititUser -> GH master Bool
   -- | Gitit subsite page layout.
   makePage :: PageLayout -> WidgetT master IO () -> GH master Html
   -- | Plugins.
@@ -69,6 +77,10 @@ data GititConfig = GititConfig{
      , front_page       :: Text                     -- ^ Front page of wiki
      , help_page        :: Text                     -- ^ Help page
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
+     , editors          :: Maybe [Text]             -- ^ Users allowed to actually edit
+     , toc_depth        :: Maybe Int                -- ^ Depth of table of contents
+     , extended_toc     :: Bool                     -- ^ Toc extends over subpage
+    , subpage_toc_in_content :: Bool                -- ^ Subpage extends to their Toc in the content
      }
 
 -- | Path to a wiki page.  Page and page components can't begin with '_'.
@@ -159,7 +171,15 @@ readPageFormat s =
        _           -> Nothing
  where (s',rest) = T.break (=='+') s
        lhs = rest == "+lhs"
+-- | Data type equivalent to Element where only sections and single links in paragraph have been kept
+data GititToc = GititLink Int Text.Pandoc.Attr [Inline] Target
+                --        lvl attributes       label    link
+              | GititSec Int [Int] Text.Pandoc.Attr [Inline] [GititToc]
+                --       lvl num   attributes       label    contents
+                deriving (Eq, Read, Show, Typeable, Data, Generic)
 
+instance ASON.FromJSON GititToc
+instance ASON.ToJSON GititToc
 data WikiPage = WikiPage {
     wpName        :: Text
   , wpFormat      :: PageFormat
@@ -170,6 +190,7 @@ data WikiPage = WikiPage {
   , wpMetadata    :: M.Map Text Value
   , wpCacheable   :: Bool
   , wpContent     :: [Block]
+  , wpTocHierarchy :: [GititToc]
 } deriving (Show)
 
 -- Create routes.
@@ -202,6 +223,6 @@ mkYesodSubData "Gitit" [parseRoutesNoCheck|
 /_expire ExpireHomeR POST
 /_categories CategoriesR GET
 /_category/#Text CategoryR GET
-/_preview PreviewR POST
+/_preview/*Page PreviewR POST
 /*Page     ViewR GET
 |]
