@@ -104,12 +104,11 @@ makeDefaultPage layout content = do
   exportFormats <- getExportFormats
   lift $ defaultLayout $ do
     addStylesheet $ staticR $ StaticRoute ["css","custom.css"] []
-    addScript $ staticR $ StaticRoute ["js","custom.js"] []
     addScript $ staticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
     addScript $ staticR $ StaticRoute ["js","bootstrap.min.js"] []
     atomLink (toMaster AtomSiteR) "Atom feed for the wiki"
     toWidget $ [lucius|input.hidden { display: none; } |]
-    $(whamletFile "template/custom/layout.hamlet")
+    $(whamletFile "template/original/layout.hamlet")
 
 -- HANDLERS and utility functions, not exported:
 
@@ -412,7 +411,7 @@ view mbrev page = do
                                    |])
                        atomLink (toMaster $ AtomPageR page)
                           "Atom link for this page"
-                       $(whamletFile "template/custom/view.hamlet")
+                       $(whamletFile "template/original/view.hamlet")
 
 extractTocAbs :: HasGitit master
               => Maybe Int
