@@ -1,0 +1,4 @@
+approot: https://freiric.com
+port: 5005
+static_dir: static2
+toc_depth: 4

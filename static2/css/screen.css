@@ -1,5 +1,68 @@
 @import "bootstrap.min.css";
 
+    body {
+	margin-top: 50px;
+    }
+
+@media screen and (max-width: 767px) {
+  #sidebar {
+    display:none;
+  }
+}
+
+/* Correct jump to anchor to preserve header (magic incantations) 
+*[id]:before { 
+  display: block; 
+  content: ""; 
+  margin-top: -75px; 
+  height: 75px; 
+  visibility: hidden; 
+}
+*/
+
+:target:before {
+    content: "";
+    display: block;
+    height: 55px;
+    margin: -55px 0 0;
+}
+
+/* make sidebar nav vertical */
+@media screen and (min-width: 768px) {
+    .padded-rows {
+	  padding-left: 400px;
+	  transition: all 0.4s ease 0s;
+    }
+    #sidebar {
+	margin-left: -390px; 
+	max-width: 390px;
+	position: fixed;
+	overflow-y: auto;
+	height: 100%;
+    }
+    #TOC .navbar .navbar-collapse {
+	padding: 0;
+	max-height: none;
+    }
+  #TOC .navbar ul {
+    float: none;
+  }
+  #TOC .navbar ul:not {
+    display: block;
+  }
+  #TOC .navbar li {
+    float: none;
+    display: block;
+  }
+  #TOC .navbar li a {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  #TOC .active{
+      background-color: #FFFF00;
+  }
+}
+
 body { color: black; background-color: #f9f9f9; padding: 10px; }
 
 label { display: block; }
@@ -44,7 +107,7 @@ sup { vertical-align: super; }
 sub { vertical-align: sub; }
 sub, sup { line-height: 0.3em; }
 p, fieldset, table, pre { margin-bottom: 1em; }
-button, input[type="checkbox"], input[type="radio"], input[type="reset"], input[type="submit"] { padding: 1px; }
+button, input[type="checkbox"], input[type="radio"], input[type="reset"], input[type="submit"], input[type="button"] { padding: 1px; }
 
 blockquote { padding: 0 1.6em; color: #666; }
 
@@ -78,7 +141,7 @@ h6 > a:link, h6 > a:active, h6 > a:hover, h6 > a:focus, h6 > a:visited {
 #sidebar ul li { color: #888; list-style: square; }
 
 div.container { margin: 0; }
-div#TOC { background-color: #f9f9f9; border: 10px solid white; margin: 0.8em; margin-right: 0; padding: 0.4em; }
+div#TOC { background-color: #f9f9f9; margin: 0.8em; margin-right: 0; padding: 0.4em; }
 #TOC ul { padding: 0 0 0 1em; margin: 0; list-style: none; }
 
 .subpage-link { background-color: #f9f9f9; border: 10px solid white; margin: 0.8em; margin-right: 0; padding: 0.4em; }

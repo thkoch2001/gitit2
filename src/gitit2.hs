@@ -74,6 +74,11 @@ instance Yesod Master where
   -- needed for BrowserId - can we set it form config or request?
   approot = ApprootMaster $ appRoot . settings
 
+  -- Additionally to the redirection below when a user is not authenticated
+  -- we would need to remove requireuser from HasGitit (and all occurrences in Gitit2.hs)
+  -- and use isAuthorized
+  authRoute _ = Just $ AuthR LoginR
+
 instance YesodAuth Master where
   type AuthId Master = Text
   getAuthId = return . Just . credsIdent
