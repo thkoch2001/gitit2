@@ -144,10 +144,11 @@ contentsToWikiPage page contents = do
   conf <- getConfig
   plugins' <- getPlugins
   converter <- wikiLinksConverter (pageToPrefix page)
-  let title = pageToText page
+  let title = lastTextFromPage page
   let defaultFormat = default_format conf
   foldM applyPlugin (contentToWikiPage' title contents converter defaultFormat) plugins'
   where
+    lastTextFromPage (Page ps) = last ps
     -- | Convert links with no URL to wikilinks.
     wikiLinksConverter :: Text -> GH master ([Inline] -> String)
     wikiLinksConverter prefix = do
