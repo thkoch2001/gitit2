@@ -17,3 +17,4 @@ latex_engine: xelatex
 # editors is the list of user emails which are allowed to edit pages
 # leave unset to allow anyone to edit
 # editors: my.email@provider.com my.other.email@example.com
+editors: persona@orezpraw.com

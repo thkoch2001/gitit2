@@ -1,21 +1,16 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE QuasiQuotes           #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE ViewPatterns          #-}
-module Network.Gitit2.Routes where
+
+module Network.Gitit2.Foundation where
 
 import Data.FileStore (FileStore, RevisionId)
 import qualified Data.Map as M
-import qualified Data.Text as T
 import Data.Text (Text)
 import Text.Blaze.Html hiding (contents)
-import Text.Pandoc (Inline, Block)
 import Yesod hiding (MsgDelete)
 import Yesod.Static
+
+import Network.Gitit2.Page (Page)
+import Network.Gitit2.WikiPage (PageFormat, WikiPage)
 
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
@@ -39,8 +34,11 @@ class (Yesod master, RenderMessage master FormMessage,
   maybeUser   :: GH master (Maybe GititUser)
   -- | Return user information or redirect to login page.
   requireUser :: GH master GititUser
-  -- | Return user information or redirect to login page.
+  -- | Determine whether a particular user is an editor.
   isEditor :: GititUser -> GH master Bool
+  -- | Return user information or redirect to login page if no user.
+  -- If user isn't an editor, show an unauthorized error.
+  requireEditor :: HasGitit master => GH master GititUser
   -- | Gitit subsite page layout.
   makePage :: PageLayout -> WidgetT master IO () -> GH master Html
   -- | Plugins.
@@ -73,39 +71,6 @@ data GititConfig = GititConfig{
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
      , editors          :: Maybe [Text]             -- ^ Users allowed to actually edit
      }
-
--- | Path to a wiki page.  Page and page components can't begin with '_'.
-data Page = Page [Text] deriving (Show, Read, Eq)
-
--- for now, we disallow @*@ and @?@ in page names, because git filestore
--- does not deal with them properly, and darcs filestore disallows them.
-instance PathMultiPiece Page where
-  toPathMultiPiece (Page x) = x
-  fromPathMultiPiece []     = Nothing
-  fromPathMultiPiece xs@(_:_) =
-     if any (\x ->  "_" `T.isPrefixOf` x ||
-                    "*" `T.isInfixOf` x ||
-                    "?" `T.isInfixOf` x ||
-                    ".." `T.isInfixOf` x ||
-                    "/_" `T.isInfixOf` x) xs
-                    then Nothing
-                    else Just (Page xs)
-
-pageToText :: Page -> Text
-pageToText (Page xs) = T.intercalate "/" xs
-
-textToPage :: Text -> Page
-textToPage x = Page $ T.splitOn "/" x
-
-instance ToMarkup Page where
-  toMarkup = toMarkup . pageToText
-
-instance ToMessage Page where
-  toMessage = pageToText
-
-instance ToMarkup (Maybe Page) where
-  toMarkup (Just x) = toMarkup x
-  toMarkup Nothing  = ""
 
 -- | A user.
 data GititUser = GititUser{ gititUserName  :: String
@@ -141,70 +106,8 @@ pageLayout = PageLayout{
   , pgCategories     = []
   }
 
--- | The Boolean is True for literate Haskell.
-data PageFormat = Markdown Bool
-                | RST Bool
-                | LaTeX Bool
-                | HTML Bool
-                | Textile Bool
-                | Org Bool
-                deriving (Read, Show, Eq )
-
-readPageFormat :: Text -> Maybe PageFormat
-readPageFormat s =
-  case T.toLower s' of
-       "markdown"  -> Just $ Markdown lhs
-       "textile"   -> Just $ Textile lhs
-       "latex"     -> Just $ LaTeX lhs
-       "html"      -> Just $ HTML lhs
-       "rst"       -> Just $ RST lhs
-       "org"       -> Just $ Org lhs
-       _           -> Nothing
- where (s',rest) = T.break (=='+') s
-       lhs = rest == "+lhs"
-
-data WikiPage = WikiPage {
-    wpName        :: Text
-  , wpFormat      :: PageFormat
-  , wpTOC         :: Bool
-  , wpLHS         :: Bool
-  , wpTitle       :: [Inline]
-  , wpCategories  :: [Text]
-  , wpMetadata    :: M.Map Text Value
-  , wpCacheable   :: Bool
-  , wpContent     :: [Block]
-} deriving (Show)
-
 -- Create routes.
-mkYesodSubData "Gitit" [parseRoutesNoCheck|
-/ HomeR GET
-/_help HelpR GET
 
-/robots.txt GititRobotsR GET
-/favicon.ico GititFaviconR GET
-/_index IndexBaseR GET
-/_index/*Page  IndexR GET
-/_random RandomR GET
-/_raw/*Page RawR GET
-/_edit/*Page  EditR GET
-/_revision/#RevisionId/*Page RevisionR GET
-/_revert/#RevisionId/*Page RevertR GET
-/_update/#RevisionId/*Page UpdateR POST
-/_create/*Page CreateR POST
-/_delete/*Page DeleteR GET POST
-/_search SearchR POST
-/_go GoR POST
-/_upload UploadR GET POST
-/_diff/#RevisionId/#RevisionId/*Page DiffR GET
-/_history/#Int/*Page HistoryR GET
-/_activity/#Int ActivityR GET
-/_atom AtomSiteR GET
-/_atom/*Page AtomPageR GET
-/_export/#Text/*Page ExportR GET
-/_expire/*Page ExpireR POST
-/_expire ExpireHomeR POST
-/_categories CategoriesR GET
-/_category/#Text CategoryR GET
-/_preview PreviewR POST
-/*Page     ViewR GET
-|]
+mkYesodSubData "Gitit" $(parseRoutesFile "Network/Gitit2/config/routes")
+
+

@@ -1,0 +1,6 @@
+$(document).keypress(function(event) {
+  if (event.which == 18) {
+    $.post("@{toMaster $ ExpireR page}");
+    window.location.reload(true);
+  };
+});
