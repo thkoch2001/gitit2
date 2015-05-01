@@ -14,3 +14,6 @@ front_page: Front Page
 help_page: Help
 max_upload_size: 1M
 latex_engine: xelatex
+# when simple_title is true it displays `myPage` for wikilinks like `[directory/bla/blo/mypage]()`
+# defaults to True
+# simple_title: False
