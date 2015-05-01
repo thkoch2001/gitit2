@@ -58,7 +58,7 @@ instance Yesod Master where
         });
         |]
       contents
-    giveUrlRenderer [hamlet|
+    withUrlRenderer [hamlet|
         $doctype 5
         <html>
           <head>
@@ -113,7 +113,7 @@ instance HasGitit Master where
 getUserR :: Handler Html
 getUserR = do
   maid <- maybeAuthId
-  giveUrlRenderer [hamlet|
+  withUrlRenderer [hamlet|
     $maybe aid <- maid
       <p><a href=@{AuthR LogoutR}>Logout #{aid}
     $nothing
@@ -123,7 +123,7 @@ getUserR = do
 getMessagesR :: Handler Html
 getMessagesR = do
   mmsg <- getMessage
-  giveUrlRenderer [hamlet|
+  withUrlRenderer [hamlet|
     $maybe msg  <- mmsg
       <p.message>#{msg}
     |]
