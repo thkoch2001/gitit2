@@ -62,8 +62,8 @@ readPageFormat s =
  where (s',rest) = T.break (=='+') s
        lhs = rest == "+lhs"
 
-contentToWikiPage' :: Text -> ByteString -> ([Inline] -> String) -> PageFormat -> WikiPage
-contentToWikiPage' title contents converter defaultFormat =
+contentToWikiPage' :: Text -> ByteString -> ([Inline] -> String) -> PageFormat -> Bool -> WikiPage
+contentToWikiPage' title contents converter defaultFormat simpleTitle =
   WikiPage {
              wpName        = title
            , wpFormat      = format
@@ -108,7 +108,7 @@ contentToWikiPage' title contents converter defaultFormat =
     convertWikiLinks (Image ref ("", "")) = Image ref (converter ref, "")
     convertWikiLinks x = x
 
-    linkTitle [Str refStr] = [Str $ T.unpack $ last . T.splitOn "/" $ T.pack refStr]
+    linkTitle [Str refStr] | simpleTitle = [Str $ T.unpack $ last . T.splitOn "/" $ T.pack refStr]
     linkTitle x = x
 
     addWikiLinks :: Pandoc -> Pandoc

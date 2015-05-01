@@ -146,7 +146,8 @@ contentsToWikiPage page contents = do
   converter <- wikiLinksConverter (pageToPrefix page)
   let title = lastTextFromPage page
   let defaultFormat = default_format conf
-  foldM applyPlugin (contentToWikiPage' title contents converter defaultFormat) plugins'
+      simpleTitle = simple_title conf
+  foldM applyPlugin (contentToWikiPage' title contents converter defaultFormat simpleTitle) plugins'
   where
     lastTextFromPage (Page ps) = last ps
     -- | Convert links with no URL to wikilinks.
