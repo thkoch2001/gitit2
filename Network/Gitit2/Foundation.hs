@@ -64,6 +64,7 @@ data GititConfig = GititConfig{
      , front_page       :: Text                     -- ^ Front page of wiki
      , help_page        :: Text                     -- ^ Help page
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
+     , simple_title     :: Bool                     -- ^ Hide directory structure for wikilinks? If True `[dir/subdir/mySubpage]()` rendered as mySubpage.
      }
 
 -- | A user.

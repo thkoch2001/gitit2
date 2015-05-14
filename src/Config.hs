@@ -48,6 +48,7 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_help_page        :: Text
                  , cfg_max_upload_size  :: String
                  , cfg_latex_engine     :: Maybe FilePath
+                 , cfg_simple_title     :: Bool
                  }
 
 data FoundationSettings  = FoundationSettings {
@@ -88,6 +89,7 @@ parseConfig os = Conf
   <*> os `parseElem` "help_page" .!= "Help"
   <*> os `parseElem` "max_upload_size" .!= "1M"
   <*> os `parseElem` "latex_engine"
+  <*> os `parseElem` "simple_title" .!= True
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -128,7 +130,6 @@ readMimeTypesFile f = catch
              warn $ "Could not parse mime types file.\n" ++ show e
              return mimeTypes
 
-
 gititConfigFromConf :: Conf -> IO GititConfig
 gititConfigFromConf conf = do
   mimes <- case cfg_mime_types_file conf of
@@ -154,5 +155,6 @@ gititConfigFromConf conf = do
                            , front_page = cfg_front_page conf
                            , help_page = cfg_help_page conf
                            , latex_engine = cfg_latex_engine conf
+                           , simple_title = cfg_simple_title conf
                            }
   return gconfig
