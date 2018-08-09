@@ -34,6 +34,11 @@ class (Yesod master, RenderMessage master FormMessage,
   maybeUser   :: GH master (Maybe GititUser)
   -- | Return user information or redirect to login page.
   requireUser :: GH master GititUser
+  -- | Determine whether a particular user is an editor.
+  isEditor :: GititUser -> GH master Bool
+  -- | Return user information or redirect to login page if no user.
+  -- If user isn't an editor, show an unauthorized error.
+  requireEditor :: HasGitit master => GH master GititUser
   -- | Gitit subsite page layout.
   makePage :: PageLayout -> WidgetT master IO () -> GH master Html
   -- | Plugins.
@@ -64,6 +69,7 @@ data GititConfig = GititConfig{
      , front_page       :: Text                     -- ^ Front page of wiki
      , help_page        :: Text                     -- ^ Help page
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
+     , editors          :: Maybe [Text]             -- ^ Users allowed to actually edit
      }
 
 -- | A user.

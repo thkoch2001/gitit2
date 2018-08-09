@@ -19,7 +19,7 @@ import Control.Exception (throw)
 
 getUploadR :: HasGitit master => GH master Html
 getUploadR = do
-  requireUser
+  requireEditor
   (form, enctype) <- lift $ generateFormPost $ uploadForm Nothing
   showUploadForm enctype form
 
@@ -80,7 +80,7 @@ uploadForm mbupload =
 
 postUploadR :: HasGitit master => GH master Html
 postUploadR = do
-  user <- requireUser
+  user <- requireEditor
   ((result, widget), enctype) <- lift $ runFormPost $ uploadForm Nothing
   fs <- filestore <$> getYesod
   case result of

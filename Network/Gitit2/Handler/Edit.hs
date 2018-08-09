@@ -16,7 +16,7 @@ import Yesod (Route)
 
 getEditR :: HasGitit master => Page -> GH master Html
 getEditR page = do
-  requireUser
+  requireEditor
   fs <- filestore <$> getYesod
   path <- pathForPage page
   mbcont <- getRawContents path Nothing
@@ -32,7 +32,7 @@ getEditR page = do
 getRevertR :: HasGitit master
            => RevisionId -> Page -> GH master Html
 getRevertR rev page = do
-  requireUser
+  requireEditor
   path <- pathForPage page
   mbcont <- getRawContents path (Just rev)
   case mbcont of
@@ -46,7 +46,7 @@ edit :: HasGitit master
      -> Page
      -> GH master Html
 edit revert txt mbrevid page = do
-  requireUser
+  requireEditor
   let contents = Textarea $ T.pack txt
   mr <- getMessageRender
   let comment = if revert
@@ -110,7 +110,7 @@ postCreateR = update' Nothing
 update' :: HasGitit master
        => Maybe RevisionId -> Page -> GH master Html
 update' mbrevid page = do
-  user <- requireUser
+  user <- requireEditor
   ((result, widget), enctype) <- lift $ runFormPost $ editForm Nothing
   fs <- filestore <$> getYesod
   toMaster <- getRouteToParent

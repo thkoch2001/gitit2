@@ -12,7 +12,7 @@ import Network.Gitit2.Page (pathForFile)
 
 getDeleteR :: HasGitit master => Page -> GH master Html
 getDeleteR page = do
-  requireUser
+  requireEditor
   fs <- filestore <$> getYesod
   path <- pathForPage page
   pageTest <- liftIO $ try $ latest fs path
@@ -41,7 +41,7 @@ getDeleteR page = do
 
 postDeleteR :: HasGitit master => Page -> GH master Html
 postDeleteR page = do
-  user <- requireUser
+  user <- requireEditor
   fs <- filestore <$> getYesod
   mr <- getMessageRender
   fileToDelete <- lift $ runInputPost $ ireq textField "fileToDelete"

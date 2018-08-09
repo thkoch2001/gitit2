@@ -104,6 +104,17 @@ instance HasGitit Master where
                         (T.unpack $ T.takeWhile (/='@') id')
                         (T.unpack id')
   requireUser = maybe (fail "login required") return =<< maybeUser
+  isEditor user = do
+    conf <- config <$> getYesod
+    return $ case editors conf of
+         Just emails ->  T.pack (gititUserEmail user) `elem` emails
+         Nothing -> True
+  requireEditor = do
+    user <- requireUser
+    editorUser <- isEditor user
+    if editorUser
+       then return user
+       else fail "unauthorized"
   makePage = makeDefaultPage
   getPlugins = return [] -- [samplePlugin]
   staticR = StaticR
